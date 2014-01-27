@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="url">Home IP</string>
+	<string name="https">https://</string>
+	<string name="port">port</string>
+	<string name="test">Test</string>
+    <string name="app_name">LitecoinHomeWallet</string>
+	<string name="errPortReq">Please specify the Litecoin RPC port</string>
+	<string name="errIpReq">Please specify the IP of your wallet. Hint: type \'what is my ip?\' into google on your home computer.</string>
+</resources>
