@@ -1,19 +1,39 @@
 package com.litecoinhomewallet;
 
-import android.app.*;
-import android.os.*;
-import android.view.*;
-import android.widget.*;
-import android.content.*;
+import java.io.BufferedInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.MalformedURLException;
 import java.net.URL;
-import javax.net.ssl.*;
-import android.text.*;
-import java.net.*;
-import java.io.*;
-import java.security.*;
+import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
+
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509TrustManager;
+
+import android.app.Activity;
+import android.content.Context;
+import android.os.AsyncTask;
+import android.os.Bundle;
+import android.text.TextUtils;
+import android.util.Log;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.EditText;
+import android.widget.Toast;
 
 public class MainActivity extends Activity
 {
+	
+	public static final String TAG = "ltc";
+	
     /** Called when the activity is first created. */
     @Override
     public void onCreate(Bundle savedInstanceState)
@@ -94,17 +114,30 @@ public class MainActivity extends Activity
 		{
 			String result = null;
 			HttpsURLConnection conn = null;
+			
 			try {
+				initTrusts();
 				URL url = new URL("https://" + ipPort[0] + ":" + ipPort[1]);
 				conn = (HttpsURLConnection)url.openConnection();
+				/*
+				Certificate[] scs = conn.getServerCertificates();
+				if (scs == null || scs.length == 0) {
+					return "No server certificates";
+				} else {
+					return "scs.length: " + scs.length;
+				}
+				*/
+				//toast("" + conn.getServerCertificates().length);
 				result = read(conn.getInputStream());
 
 			} catch (MalformedURLException mu) {
 				return getExText(mu);
 			} catch (IOException io) {
 				return getExText(io);
+			} catch (Exception e) {
+				return getExText(e);
 			} finally {
-				if (conn != null) {
+   				if (conn != null) {
 					conn.disconnect();
 				}
 			}
@@ -119,12 +152,64 @@ public class MainActivity extends Activity
 			}
 		}
 		
-		private String initTrusts() throws NoSuchAlgorithmException {
-			String result = null;
+		private void initTrusts() throws NoSuchAlgorithmException, KeyStoreException, KeyManagementException {
+			
 			String alg = TrustManagerFactory.getDefaultAlgorithm();
-			TrustManagerFactory.getInstance(alg);
-			return result;
+			TrustManagerFactory tmf = TrustManagerFactory.getInstance(alg);
+			tmf.init((KeyStore)null);
+			final X509TrustManager systemTrustManager = (X509TrustManager)tmf.getTrustManagers()[0];
+					
+			TrustManager[] tms = new TrustManager[] {
+					new LitecoinTrustManager(systemTrustManager) 
+			};
+			SSLContext sslCtx = SSLContext.getInstance("TLS");
+			sslCtx.init(null, tms, null);
+			HttpsURLConnection.setDefaultSSLSocketFactory(sslCtx.getSocketFactory());
 		}
-		
 	}
+
+	private static class LitecoinTrustManager implements X509TrustManager {
+		
+		private X509TrustManager systemTrustManager;
+		
+		public LitecoinTrustManager(X509TrustManager systemTrustManager) {
+			this.systemTrustManager = systemTrustManager;
+		}
+		@Override
+		public void checkClientTrusted(X509Certificate[] chain,
+				String authType) throws CertificateException {
+			systemTrustManager.checkClientTrusted(chain, authType);
+		}
+		@Override
+		public void checkServerTrusted(X509Certificate[] chain,
+				String authType) throws CertificateException {
+			
+			Log.w(TAG, "received chain with " + chain.length + " certs");
+			
+			try {
+				systemTrustManager.checkServerTrusted(chain, authType);
+				Log.w(TAG, "Server certificate passed android system trust check");
+			} catch (CertificateException e) {
+				if (chain.length == 1) {
+					X509Certificate untrusted = chain[0];
+					
+					Log.w(TAG, "Type: " + untrusted.getType());
+					Log.w(TAG, "Subject: " + untrusted.getSubjectDN() == null ? null : untrusted.getSubjectDN().getName());
+					Log.w(TAG, "Issuer: " + untrusted.getIssuerDN() == null ? null : untrusted.getIssuerDN().getName());
+					Log.w(TAG, "Algo: " + untrusted.getPublicKey().getAlgorithm());
+					
+					// TODO ask the user if they want to accept it.
+					
+				} else {
+					Log.w(TAG, "More than one in the chain, not a self signed certificate");
+					throw e;
+				}
+			}
+		}
+		@Override
+		public X509Certificate[] getAcceptedIssuers() {
+			return systemTrustManager.getAcceptedIssuers();
+		}
+	};
+
 }
