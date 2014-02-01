@@ -12,8 +12,10 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 
+import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSession;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
@@ -61,7 +63,7 @@ public class MainActivity extends Activity
 		StringBuilder sb = new StringBuilder();
 		int c = 0;
 		while ((c = bis.read()) >= 0) {
-			sb.append(c);
+			sb.append((char)c);
 		}
 		bis.close();
 		return sb.toString();
@@ -166,6 +168,14 @@ public class MainActivity extends Activity
 			SSLContext sslCtx = SSLContext.getInstance("TLS");
 			sslCtx.init(null, tms, null);
 			HttpsURLConnection.setDefaultSSLSocketFactory(sslCtx.getSocketFactory());
+			HttpsURLConnection.setDefaultHostnameVerifier(new LitecoinHostnameVerifier());
+		}
+	}
+	
+	private static class LitecoinHostnameVerifier implements HostnameVerifier {
+		@Override
+		public boolean verify(String hostname, SSLSession session) {
+			return true;
 		}
 	}
 
